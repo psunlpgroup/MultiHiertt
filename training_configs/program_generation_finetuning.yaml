@@ -1,0 +1,79 @@
+seed_everything: 333
+trainer:
+  gpus: [0, 3, 4, 7]
+  gradient_clip_val: 1.0
+  default_root_dir: &exp_name results/MH_program_generation
+  check_val_every_n_epoch: 4
+  max_epochs: &max_epochs 60
+  log_every_n_steps: 1
+  logger:
+    - class_path: lightning_modules.patches.patched_loggers.PatchedWandbLogger
+      init_args:
+        entity: yilunzhao
+        project: mh_program_generator
+        name: *exp_name
+        log_model: False
+        save_code: True
+        offline: False
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint
+      init_args:
+        monitor: val_loss
+        mode: min
+        filename: '{step}-{val_loss:.4f}'
+        save_top_k: 5
+    - class_path: pytorch_lightning.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: pytorch_lightning.callbacks.progress.TQDMProgressBar
+      init_args:
+        refresh_rate: 1
+        
+  accelerator: gpu
+  strategy: ddp
+  accumulate_grad_batches: 2
+
+model:
+  class_path: lightning_modules.models.program_generation_model.ProgramGenerationModel
+  init_args:
+    model_name: &transformer roberta-base
+    program_length: 30
+    input_length: 512
+    max_step_ind: 11
+    dropout_rate: 0.1
+    num_decoder_layers: 1
+    n_best_size: 20
+    sep_attention: True
+    layer_norm: True
+    optimizer:
+      init_args: 
+        lr: 2.0e-5
+        betas: 
+          - 0.9
+          - 0.999
+        eps: 1.0e-8
+        weight_decay: 0.1
+    lr_scheduler:
+      name: linear
+      init_args:
+        num_warmup_steps: 100
+        num_training_steps: 10000
+    test_set: dev_training.json
+    entity_name: &selected_entity_name question_type
+    input_dir: dataset/reasoning_module_input
+
+data:
+  class_path: lightning_modules.datasets.program_generation_reader.ProgramGenerationDataModule
+  init_args:
+    model_name: *transformer
+    max_seq_length: 512
+    max_program_length: 30
+    batch_size: 24
+    val_batch_size: 24 # when using multi-GPU, wandb will automatically average the exe-acc
+    train_file_path: ./dataset/reasoning_module_input/train_training.json
+    val_file_path: ./dataset/reasoning_module_input/dev_training.json
+    train_max_instances: -1
+    val_max_instances: -1
+    entity_name: *selected_entity_name
+
+# clear; export PYTHONPATH=`pwd`; python trainer.py fit --config training_configs/program_generation_finetuning.yaml

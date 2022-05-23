@@ -1,0 +1,38 @@
+seed_everything: 333
+trainer:
+  gpus: [0] 
+  callbacks:
+    - class_path: lightning_modules.callbacks.question_classification_save_prediction_callback.SavePredictionCallback
+      init_args:
+          test_set: &prediction_set test
+          input_dir: &input_dir_path dataset
+          output_dir: output/question_classification_output
+
+  accelerator: gpu
+  strategy: ddp_find_unused_parameters_false
+
+
+model:
+  class_path: lightning_modules.models.question_classification_model.QuestionClassificationModel
+  init_args:
+    model_name: &transformer roberta-base
+    optimizer:
+      init_args: 
+        lr: 0.0
+    lr_scheduler:
+      name: linear
+      init_args:
+        num_warmup_steps: 100
+        num_training_steps: 10000
+    test_set: *prediction_set
+
+data:
+  class_path: lightning_modules.datasets.question_classification_reader.QuestionClassificationPredictionDataModule
+  init_args:
+    model_name: *transformer
+    batch_size: 64
+    test_file_path: dataset/test.json # {dataset/test.json, dataset/dev.json}, also change line 7
+    test_max_instances: -1
+
+# for inference:
+# clear; export PYTHONPATH=`pwd`; python trainer.py predict --ckpt_path checkpoints/question_classification_model.ckpt --config inference_configs/question_classification_inference.yaml

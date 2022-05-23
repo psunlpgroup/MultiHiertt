@@ -1,0 +1,39 @@
+seed_everything: 333
+trainer:
+  gpus: [0]
+  callbacks:
+    - class_path: lightning_modules.callbacks.retriever_save_prediction_callback.SavePredictionCallback
+      init_args:
+          test_set: &prediction_set test
+          input_dir: &input_dir_path dataset
+          output_dir: output/retriever_output
+          
+  accelerator: gpu
+  strategy: ddp
+
+model:
+  class_path: lightning_modules.models.retriever_model.RetrieverModel
+  init_args:
+    transformer_model_name: &transformer roberta-base
+    topn: 10
+    dropout_rate: 0.1
+    optimizer:
+      init_args: 
+        lr: 0.0
+    lr_scheduler:
+      name: linear
+      init_args:
+        num_warmup_steps: 100
+        num_training_steps: 10000∂
+
+data:
+  class_path: lightning_modules.datasets.retriever_reader.RetrieverPredictionDataModule
+  init_args:
+    transformer_model_name: *transformer
+    batch_size: 512
+    num_workers: 8
+    test_file_path: dataset/test.json # {train, dev, test}, also change line 7
+    test_max_instances: -1
+
+# for inference:
+# clear; export PYTHONPATH=`pwd`; python trainer.py predict --ckpt_path checkpoints/retriever_model.ckpt --config inference_configs/retriever_inference.yaml

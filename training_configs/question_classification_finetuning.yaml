@@ -1,0 +1,72 @@
+seed_everything: 333
+trainer:
+  gpus: [0, 1, 2, 3]
+  gradient_clip_val: 1.0
+  default_root_dir: &exp_name results/MH_question_classification
+  check_val_every_n_epoch: 5
+  max_epochs: &max_epochs 20
+  log_every_n_steps: 1
+  logger:
+    - class_path: lightning_modules.patches.patched_loggers.PatchedWandbLogger
+      init_args:
+        entity: yilunzhao
+        project: MH_question_classification
+        name: *exp_name
+        log_model: False
+        save_code: True
+        offline: False
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint
+      init_args:
+        monitor: val_loss
+        mode: min
+        filename: '{step}-{val_loss:.4f}'
+        save_top_k: 2
+    - class_path: pytorch_lightning.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: pytorch_lightning.callbacks.progress.TQDMProgressBar
+      init_args:
+        refresh_rate: 1
+    - class_path: lightning_modules.callbacks.question_classification_save_prediction_callback.SavePredictionCallback
+      init_args:
+          test_set: &prediction_set test
+          input_dir: &input_dir_path dataset
+          output_dir: question_classification_output
+
+  accelerator: gpu
+  strategy: ddp_find_unused_parameters_false
+  accumulate_grad_batches: 2
+
+
+model:
+  class_path: lightning_modules.models.question_classification_model.QuestionClassificationModel
+  init_args:
+    model_name: &transformer roberta-base
+    optimizer:
+      init_args: 
+        lr: 2.0e-5
+        betas: 
+          - 0.9
+          - 0.999
+        eps: 1.0e-8
+        weight_decay: 0.1
+    lr_scheduler:
+      name: linear
+      init_args:
+        num_warmup_steps: 100
+        num_training_steps: 10000
+    test_set: dev
+
+data:
+  class_path: lightning_modules.datasets.question_classification_reader.QuestionClassificationDataModule
+  init_args:
+    model_name: *transformer
+    batch_size: 192
+    val_batch_size: 512
+    train_file_path: dataset/train.json
+    val_file_path: dataset/dev.json
+    train_max_instances: -1
+    val_max_instances: -1
+
+# clear; export PYTHONPATH=`pwd`; python trainer.py fit --config training_configs/question_classification_finetuning.yaml

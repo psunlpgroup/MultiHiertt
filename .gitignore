@@ -1,0 +1,15 @@
+wandb/*
+results
+.DS_Store
+log.txt
+*predictions.json
+*.pyc
+__pycache__/
+*copy*
+dataset/*
+lightning_logs
+.ipynb_checkpoints
+output
+checkpoints
+wandb
+*.json

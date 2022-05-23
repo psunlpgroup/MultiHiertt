@@ -1,0 +1,70 @@
+seed_everything: 333
+trainer:
+  gpus: [1, 3, 4, 7] 
+  default_root_dir: &exp_name results/MH_span_selection
+  check_val_every_n_epoch: 4
+  max_epochs: &max_epochs 40
+  # progress_bar_refresh_rate: 1
+  log_every_n_steps: 1
+  logger:
+    - class_path: lightning_modules.patches.patched_loggers.PatchedWandbLogger
+      init_args:
+        entity: yilunzhao
+        project: MH_span_selection
+        name: *exp_name
+        log_model: False
+        save_code: True
+        offline: False
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint
+      init_args:
+        monitor: val_loss
+        mode: min
+        filename: '{step}-{val_loss:.4f}'
+        save_top_k: 5
+    - class_path: pytorch_lightning.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: pytorch_lightning.callbacks.progress.TQDMProgressBar
+      init_args:
+        refresh_rate: 1
+        
+  accelerator: gpu
+  strategy: ddp_find_unused_parameters_false
+  accumulate_grad_batches: 2
+
+model:
+  class_path: lightning_modules.models.span_selection_model.SpanSelectionModel
+  init_args:
+    model_name: &transformer t5-base
+    optimizer:
+      init_args: 
+        lr: 2.0e-5
+        # lr: 0.0
+        betas: 
+          - 0.9
+          - 0.999
+        eps: 1.0e-8
+        weight_decay: 0.1
+    lr_scheduler:
+      name: linear
+      init_args:
+        num_warmup_steps: 100
+        num_training_steps: 10000
+    test_set: dev_training.json
+    input_dir: dataset/reasoning_module_input
+
+data:
+  class_path: lightning_modules.datasets.span_selection_reader.SpanSelectionDataModule
+  init_args:
+    model_name: *transformer
+    batch_size: 20
+    val_batch_size: 32
+    train_file_path: ./dataset/reasoning_module_input/train_training.json
+    val_file_path: ./dataset/reasoning_module_input/dev_training.json
+    train_max_instances: -1
+    val_max_instances: -1
+    entity_name: question_type
+    
+
+# clear; export PYTHONPATH=`pwd`; python trainer.py fit --config training_configs/span_selection_finetuning.yaml

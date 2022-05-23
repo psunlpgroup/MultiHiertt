@@ -1,0 +1,53 @@
+seed_everything: 333
+trainer:
+  gpus: [0]
+  callbacks:
+    - class_path: lightning_modules.callbacks.program_generation_save_prediction_callback.SavePredictionCallback
+      init_args:
+          test_set: &prediction_set test # {dev, test}
+          input_dir: &input_dir_path dataset/reasoning_module_input
+          output_dir: output/program_generation_output
+          model_name: &transformer roberta-base
+          program_length: &prog_len 30
+          input_length: &input_max_len 512
+          entity_name: &selected_entity_name predicted_question_type
+   
+  accelerator: gpu
+  strategy: ddp_find_unused_parameters_false
+
+model:
+  class_path: lightning_modules.models.program_generation_model.ProgramGenerationModel
+  init_args:
+    model_name: *transformer
+    program_length: *prog_len
+    input_length: *input_max_len
+    max_step_ind: 11
+    dropout_rate: 0.1
+    num_decoder_layers: 1
+    n_best_size: 20
+    sep_attention: True
+    layer_norm: True
+    optimizer:
+      init_args: 
+        lr: 0.0
+    lr_scheduler:
+      name: linear
+      init_args:
+        num_warmup_steps: 100
+        num_training_steps: 10000
+    test_set: *prediction_set
+    entity_name: *selected_entity_name
+    input_dir: *input_dir_path
+
+data:
+  class_path: lightning_modules.datasets.program_generation_reader.ProgramGenerationPredictionDataModule
+  init_args:
+    model_name: *transformer
+    max_seq_length: 512
+    max_program_length: 30
+    batch_size: 64
+    test_file_path: ./dataset/reasoning_module_input/test_inference.json # also change line 7
+    test_max_instances: -1
+    entity_name: *selected_entity_name
+
+# clear; export PYTHONPATH=`pwd`; python trainer.py predict --ckpt_path checkpoints/program_generation_model.ckpt --config inference_configs/program_generation_inference.yaml
