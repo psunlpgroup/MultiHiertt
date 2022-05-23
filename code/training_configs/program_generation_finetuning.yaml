@@ -1,0 +1,89 @@
+seed_everything: 333
+trainer:
+  gpus: [1]
+  gradient_clip_val: 1.0
+  default_root_dir: &exp_name results/program_generation
+  check_val_every_n_epoch: 10
+  max_steps: &max_steps 100000
+  # num_sanity_val_steps: 0
+  # progress_bar_refresh_rate: 1
+  log_every_n_steps: 1
+  logger:
+    - class_path: lightning_modules.patches.patched_loggers.PatchedWandbLogger
+      init_args:
+        entity: # set your own account
+        project: # set your own project
+        name: *exp_name
+        log_model: False
+        save_code: True
+        offline: False
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.model_checkpoint.ModelCheckpoint
+      init_args:
+        monitor: exe_acc
+        mode: max
+        filename: '{step}-{res:.4f}-{res_3:.4f}'
+        save_top_k: 5
+    - class_path: pytorch_lightning.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: pytorch_lightning.callbacks.progress.TQDMProgressBar
+      init_args:
+        refresh_rate: 1
+        
+    # - class_path: pytorch_lightning.callbacks.gpu_stats_monitor.GPUStatsMonitor
+    #   init_args:
+    #     memory_utilization: true
+    #     gpu_utilization: true
+        
+  # accelerator: gpu
+  # # replace_sampler_ddp: False
+  # # https://github.com/PyTorchLightning/pytorch-lightning/issues/8262
+  # strategy: deepspeed_stage_2
+  # strategy: dp
+  # # strategy: ddp_find_unused_parameters_false
+  # precision: 16
+  accumulate_grad_batches: 4
+
+model:
+  class_path: lightning_modules.models.program_generation_model.ProgramGenerationModel
+  init_args:
+    model_name: roberta-base
+    program_length: 30
+    input_length: 512
+    max_step_ind: 11
+    dropout_rate: 0.1
+    num_decoder_layers: 1
+    n_best_size: 20
+    sep_attention: True
+    layer_norm: True
+    optimizer:
+      init_args: 
+        lr: 2.0e-5
+        # lr: 0.0
+        betas: 
+          - 0.9
+          - 0.999
+        eps: 1.0e-8
+        weight_decay: 0.1
+    lr_scheduler:
+      name: linear
+      init_args:
+        num_warmup_steps: 100
+        num_training_steps: *max_steps
+
+data:
+  class_path: lightning_modules.datasets.program_generation_reader.FinQADataModule
+  init_args:
+    model_name: roberta-base
+    max_seq_length: 512
+    max_program_length: 30
+    batch_size: 20
+    val_batch_size: 20
+    train_file_path: ./dataset/data/train.json
+    val_file_path: ./dataset/data/val.json
+    test_file_path: ./dataset/data/test.json
+    train_max_instances: -1
+    val_max_instances: -1
+
+# export PYTHONPATH=`pwd`; python trainer.py fit --config training_configs/retriever_finetuning.yaml
