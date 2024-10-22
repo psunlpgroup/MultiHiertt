@@ -48,7 +48,7 @@ The dataset is stored as json files [Download Link](https://drive.google.com/dri
 ```
 
 ## MT2Net
-We provide the model checkpoints in [Download Link](https://drive.google.com/drive/folders/1LPVGoWm1Tsm4Asjc6soeFI3sMTfsAz1_?usp=sharing). Download them into the directory `checkpoints`.
+We provide the model checkpoints in [Hugging Face](https://huggingface.co/datasets/yilunzhao/MultiHiertt/tree/main). Download them (`*.ckpt`) into the directory `checkpoints`.
 ### 1. Fact Retrieving & Question Type Classification Module
 #### 1.1 Training Stage
 - Edit `training_configs/retriever_finetuning.yaml` & `training_configs/question_classification_finetuning.yaml` to set your own project and data path. 
